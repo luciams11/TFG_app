@@ -150,7 +150,7 @@ public class MainActivity extends AppCompatActivity {
         for (Map.Entry<String, String> entry : devicesMap.entrySet()) {
             String deviceAddress = entry.getKey();
             String deviceName = entry.getValue();
-            String displayText = deviceName + " - " + deviceAddress;
+            String displayText = deviceName + "\n" + deviceAddress;
             devicesArrayAdapter.add(displayText);
         }
         devicesArrayAdapter.notifyDataSetChanged();
