@@ -22,6 +22,9 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -29,16 +32,27 @@ public class MainActivity extends AppCompatActivity {
     private static final int REQUEST_LOCATION_PERMISSION = 2;
 
     private BluetoothAdapter bluetoothAdapter;
+
+    // Para mostrar datos en la interfaz como lista
     private ArrayAdapter<String> devicesArrayAdapter;
-    private ArrayList<String> devicesList;
+    //Contiene nombre y direccion MAC (se puede cambiar por un ArrayList para guardar solo la MAC)
+    private Map<String, String> devicesMap;
+
+    private List<String> devicesList;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        devicesList = new ArrayList<>();
-        devicesArrayAdapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, devicesList);
+        devicesMap = new HashMap<>();
+        // Convertir los valores del HashMap a una lista
+        devicesList = new ArrayList<>(devicesMap.values());
+
+        // Crear el ArrayAdapter con la lista
+        //* Cambiar a android.R.layout.simple_list_item_1
+        devicesArrayAdapter = new ArrayAdapter<>(this, R.layout.list_item_device);
+
 
         ListView devicesListView = findViewById(R.id.devicesListView);
         devicesListView.setAdapter(devicesArrayAdapter);
@@ -97,7 +111,8 @@ public class MainActivity extends AppCompatActivity {
 
     private void startDiscovery() {
         // Limpiar la lista antes de comenzar una nueva búsqueda
-        devicesList.clear();
+        devicesMap.clear();
+        devicesArrayAdapter.clear();
 
         // Registrar el BroadcastReceiver para recibir eventos de descubrimiento de Bluetooth
         IntentFilter filter = new IntentFilter(BluetoothDevice.ACTION_FOUND);
@@ -118,12 +133,28 @@ public class MainActivity extends AppCompatActivity {
                 String deviceName = device.getName();
                 String deviceAddress = device.getAddress(); // Obtener la dirección MAC del dispositivo
 
-                // Agregar el dispositivo a la lista
-                devicesList.add(deviceName + "\n" + deviceAddress);
-                devicesArrayAdapter.notifyDataSetChanged();
+                //* Cambiar esto si se cambia a list
+                if(!devicesMap.containsKey(deviceAddress)){
+                    // Agregar el dispositivo a la lista si no ya está añadido
+                    devicesMap.put(deviceAddress, deviceName);
+                    updateListView();
+                }
             }
         }
     };
+
+    private void updateListView() {
+        // Limpiar y volver a llenar el ArrayAdapter con las direcciones y nombres del mapa
+        devicesArrayAdapter.clear();
+        //*Cambiar esto tambien
+        for (Map.Entry<String, String> entry : devicesMap.entrySet()) {
+            String deviceAddress = entry.getKey();
+            String deviceName = entry.getValue();
+            String displayText = deviceName + " - " + deviceAddress;
+            devicesArrayAdapter.add(displayText);
+        }
+        devicesArrayAdapter.notifyDataSetChanged();
+    }
 
     @Override
     protected void onDestroy() {
