@@ -56,7 +56,7 @@ public class MainActivity extends AppCompatActivity {
 
     private static final int REQUEST_ENABLE_BT = 1;
     private static final int REQUEST_LOCATION_PERMISSION = 2;
-    private static final long INTERVALO_DE_TIEMPO = 2*60*1000;
+    private static final long INTERVALO_DE_TIEMPO = 1*60*1000;
 
     private Handler handler;
     private BluetoothAdapter bluetoothAdapter;
@@ -219,8 +219,7 @@ public class MainActivity extends AppCompatActivity {
                             "HASHED Address: " + hashed_mac + "\n" +
                             "Date/Time: " + fecha_hora + "\n" +
                             "Latitude: " + latitud + "\n" +
-                            "Longitude: " + longitud + "\n" +
-                            "marca: " + "unknown";
+                            "Longitude: " + longitud ;
 
                     devicesMap.put(deviceAddress, deviceInfo);
                     updateListView();
@@ -246,7 +245,6 @@ public class MainActivity extends AppCompatActivity {
 
 
     private void sendDataToServer(final String hashed_mac, final String fecha_hora, final double latitud, final double longitud) {
-
         handler.postDelayed(new Runnable() {
             @Override
             public void run() {
@@ -266,8 +264,8 @@ public class MainActivity extends AppCompatActivity {
                 HttpHandler httpHandler = new HttpHandler();
 
                 // Realizar la solicitud POST al servidor con los datos proporcionados
-                String postUrl = "http://192.168.1.154:8000/dispositivos/";
-                String requestBody = "{\"hashed_mac\": \"" + hashed_mac + "\", \"fecha_hora\": \"" + fecha_hora + "\", \"latitud\": \"" + latitud + "\", \"longitud\": \"" + longitud + "\", \"marca\": \"unknown\" }";
+                String postUrl = "https://dd5d-2a0c-5a84-660e-e00-49b0-a89f-fde0-8cfa.ngrok-free.app/dispositivos/";
+                String requestBody = "{\"hashed_mac\": \"" + hashed_mac + "\", \"fecha_hora\": \"" + fecha_hora + "\", \"latitud\": \"" + latitud + "\", \"longitud\": \"" + longitud + "\"}";
                 try {
                     return httpHandler.doPostRequest(postUrl, requestBody);
                 } catch (IOException e) {
