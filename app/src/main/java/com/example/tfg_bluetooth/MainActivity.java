@@ -48,6 +48,9 @@ import java.io.InputStreamReader;
 import java.io.DataOutputStream;
 import java.nio.charset.StandardCharsets;
 
+//Encriptar dirección MAC
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -149,6 +152,37 @@ public class MainActivity extends AppCompatActivity {
         bluetoothAdapter.startDiscovery();
     }
 
+    // Declarar el método para calcular la hashed_mac a partir de la dirección MAC
+    private String hashMac(String macAddress) {
+        try {
+            // Crear una instancia de MessageDigest con el algoritmo SHA-256
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+
+            // Convertir la macAddress a bytes
+            byte[] macBytes = macAddress.getBytes();
+
+            // Calcular el hash de la macAddress
+            byte[] hashBytes = digest.digest(macBytes);
+
+            // Convertir el hash a una representación hexadecimal
+            StringBuilder hexString = new StringBuilder();
+            for (byte hashByte : hashBytes) {
+                String hex = Integer.toHexString(0xff & hashByte);
+                if (hex.length() == 1) {
+                    hexString.append('0');
+                }
+                hexString.append(hex);
+            }
+
+            // Devolver la representación hexadecimal del hash
+            return hexString.toString();
+        } catch (NoSuchAlgorithmException e) {
+            e.printStackTrace();
+            // Manejar el caso en que el algoritmo no esté disponible
+            return null;
+        }
+    }
+
 
     // BroadcastReceiver para recibir eventos de descubrimiento de Bluetooth
     private final BroadcastReceiver receiver = new BroadcastReceiver() {
@@ -160,7 +194,7 @@ public class MainActivity extends AppCompatActivity {
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
                 String deviceName = device.getName();
                 String deviceAddress = device.getAddress(); // Obtener la dirección MAC del dispositivo
-                String hashed_mac = deviceAddress;
+                String hashed_mac = hashMac(deviceAddress);
 
                 // Obtener la fecha y hora actual
                 SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
@@ -181,7 +215,8 @@ public class MainActivity extends AppCompatActivity {
                 //* Cambiar esto si se cambia a list
                 if(!devicesMap.containsKey(deviceAddress)){
                     String deviceInfo = "Name: " + deviceName + "\n" +
-                            "Address: " + hashed_mac + "\n" +
+                            "Address: " + deviceAddress + "\n" +
+                            "HASHED Address: " + hashed_mac + "\n" +
                             "Date/Time: " + fecha_hora + "\n" +
                             "Latitude: " + latitud + "\n" +
                             "Longitude: " + longitud + "\n" +
@@ -209,8 +244,6 @@ public class MainActivity extends AppCompatActivity {
         devicesArrayAdapter.notifyDataSetChanged();
     }
 
-
-    private boolean isTaskScheduled = false;
 
     private void sendDataToServer(final String hashed_mac, final String fecha_hora, final double latitud, final double longitud) {
 
