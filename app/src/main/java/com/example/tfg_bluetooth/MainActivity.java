@@ -8,8 +8,13 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.location.Location;
+import android.location.LocationManager;
+import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.util.Log;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -21,16 +26,36 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+
+//Manejo peticiones HTTP
+import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.URL;
+
+//Solicitudes GET
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+
+//Solicitudes POST
+import java.io.DataOutputStream;
+import java.nio.charset.StandardCharsets;
+
 
 public class MainActivity extends AppCompatActivity {
 
     private static final int REQUEST_ENABLE_BT = 1;
     private static final int REQUEST_LOCATION_PERMISSION = 2;
+    private static final long INTERVALO_DE_TIEMPO = 2*60*1000;
 
+    private Handler handler;
     private BluetoothAdapter bluetoothAdapter;
 
     // Para mostrar datos en la interfaz como lista
@@ -84,6 +109,8 @@ public class MainActivity extends AppCompatActivity {
                 startDiscovery();
             }
         });
+
+        handler = new Handler();
     }
 
 
@@ -122,6 +149,7 @@ public class MainActivity extends AppCompatActivity {
         bluetoothAdapter.startDiscovery();
     }
 
+
     // BroadcastReceiver para recibir eventos de descubrimiento de Bluetooth
     private final BroadcastReceiver receiver = new BroadcastReceiver() {
         public void onReceive(Context context, Intent intent) {
@@ -132,28 +160,100 @@ public class MainActivity extends AppCompatActivity {
                 BluetoothDevice device = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
                 String deviceName = device.getName();
                 String deviceAddress = device.getAddress(); // Obtener la dirección MAC del dispositivo
+                String hashed_mac = deviceAddress;
+
+                // Obtener la fecha y hora actual
+                SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault());
+                String fecha_hora = dateFormat.format(new Date());
+
+                //Latitud y longitud
+                double latitud = 0.0;
+                double longitud = 0.0;
+                LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+                if (locationManager != null) {
+                    Location location = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+                    if (location != null) {
+                        latitud = location.getLatitude();
+                        longitud = location.getLongitude();
+                    }
+                }
 
                 //* Cambiar esto si se cambia a list
                 if(!devicesMap.containsKey(deviceAddress)){
-                    // Agregar el dispositivo a la lista si no ya está añadido
-                    devicesMap.put(deviceAddress, deviceName);
+                    String deviceInfo = "Name: " + deviceName + "\n" +
+                            "Address: " + hashed_mac + "\n" +
+                            "Date/Time: " + fecha_hora + "\n" +
+                            "Latitude: " + latitud + "\n" +
+                            "Longitude: " + longitud + "\n" +
+                            "marca: " + "unknown";
+
+                    devicesMap.put(deviceAddress, deviceInfo);
                     updateListView();
                 }
+
+                // Llamar al método para enviar los datos al servidor
+                sendDataToServer(hashed_mac, fecha_hora, latitud, longitud);
             }
+
         }
     };
+
 
     private void updateListView() {
         // Limpiar y volver a llenar el ArrayAdapter con las direcciones y nombres del mapa
         devicesArrayAdapter.clear();
         //*Cambiar esto tambien
-        for (Map.Entry<String, String> entry : devicesMap.entrySet()) {
-            String deviceAddress = entry.getKey();
-            String deviceName = entry.getValue();
-            String displayText = deviceName + "\n" + deviceAddress;
-            devicesArrayAdapter.add(displayText);
+        for (String deviceInfo : devicesMap.values()) {
+            devicesArrayAdapter.add(deviceInfo);
         }
         devicesArrayAdapter.notifyDataSetChanged();
+    }
+
+
+    private boolean isTaskScheduled = false;
+
+    private void sendDataToServer(final String hashed_mac, final String fecha_hora, final double latitud, final double longitud) {
+
+        handler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                // Llamar al método para enviar datos al servidor con los parámetros proporcionados
+                performDataSending(hashed_mac, fecha_hora, latitud, longitud);
+                // Programar la tarea nuevamente después del intervalo de tiempo especificado
+                handler.postDelayed(this, INTERVALO_DE_TIEMPO);
+            }
+        }, INTERVALO_DE_TIEMPO); // Iniciar la tarea después del intervalo de tiempo especificado por primera vez
+    }
+
+    private void performDataSending(final String hashed_mac, final String fecha_hora, final double latitud, final double longitud) {
+        new AsyncTask<Void, Void, String>() {
+            @Override
+            protected String doInBackground(Void... voids) {
+                // Crear una instancia de HttpHandler
+                HttpHandler httpHandler = new HttpHandler();
+
+                // Realizar la solicitud POST al servidor con los datos proporcionados
+                String postUrl = "http://192.168.1.154:8000/dispositivos/";
+                String requestBody = "{\"hashed_mac\": \"" + hashed_mac + "\", \"fecha_hora\": \"" + fecha_hora + "\", \"latitud\": \"" + latitud + "\", \"longitud\": \"" + longitud + "\", \"marca\": \"unknown\" }";
+                try {
+                    return httpHandler.doPostRequest(postUrl, requestBody);
+                } catch (IOException e) {
+                    e.printStackTrace();
+                    return null;
+                }
+            }
+
+            @Override
+            protected void onPostExecute(String response) {
+                super.onPostExecute(response);
+                // Procesar la respuesta recibida si es necesario
+                if (response != null) {
+                    Log.d("POST Response", response);
+                } else {
+                    Log.e("POST Error", "No se pudo completar la solicitud HTTP POST");
+                }
+            }
+        }.execute();
     }
 
     @Override
@@ -164,5 +264,63 @@ public class MainActivity extends AppCompatActivity {
             bluetoothAdapter.cancelDiscovery();
         }
         unregisterReceiver(receiver);
+
+        // Detener el envío de datos al servidor cuando se destruye la actividad
+        if (handler != null) {
+            handler.removeCallbacksAndMessages(null);
+        }
+    }
+
+    // Clase para manejar las solicitudes HTTP
+    private static class HttpHandler {
+
+        public String doGetRequest(String urlString) throws IOException {
+            URL url = new URL(urlString);
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("GET");
+
+            StringBuilder response = new StringBuilder();
+            try (InputStream inputStream = connection.getInputStream();
+                 BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    response.append(line);
+                }
+            } finally {
+                connection.disconnect();
+            }
+            return response.toString();
+        }
+
+        public String doPostRequest(String urlString, String requestBody) throws IOException {
+            Log.d("URLString", urlString);
+            URL url = new URL(urlString);
+            Log.d("URL", url.toString());
+
+            HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+            connection.setRequestMethod("POST");
+            connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+            connection.setDoOutput(true);
+
+            try (DataOutputStream outputStream = new DataOutputStream(connection.getOutputStream())) {
+                byte[] postData = requestBody.getBytes(StandardCharsets.UTF_8);
+                outputStream.write(postData);
+            }
+
+
+            StringBuilder response = new StringBuilder();
+            try (InputStream inputStream = connection.getInputStream();
+                 BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    response.append(line);
+                }
+            } finally {
+                connection.disconnect();
+            }
+            return response.toString();
+        }
     }
 }
+
+
