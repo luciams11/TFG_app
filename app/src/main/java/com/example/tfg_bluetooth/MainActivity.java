@@ -14,6 +14,7 @@ import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.util.Base64;
 import android.util.Log;
 import android.view.View;
 import android.widget.ArrayAdapter;
@@ -26,6 +27,11 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.ByteArrayOutputStream;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -33,6 +39,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.zip.*;
 
 //Manejo peticiones HTTP
 import java.io.IOException;
@@ -56,9 +63,18 @@ public class MainActivity extends AppCompatActivity {
 
     private static final int REQUEST_ENABLE_BT = 1;
     private static final int REQUEST_LOCATION_PERMISSION = 2;
-    private static final long INTERVALO_DE_TIEMPO = 2*60*1000;
+    private static final long INTERVALO_DE_TIEMPO = 1*60*1000;
 
     private Handler handler;
+
+    private Handler sendDataHandler = new Handler();
+    private Runnable sendDataRunnable = new Runnable() {
+        @Override
+        public void run() {
+            sendData();
+            sendDataHandler.postDelayed(this, INTERVALO_DE_TIEMPO);
+        }
+    };
     private BluetoothAdapter bluetoothAdapter;
 
     // Para mostrar datos en la interfaz como lista
@@ -114,6 +130,8 @@ public class MainActivity extends AppCompatActivity {
         });
 
         handler = new Handler();
+
+        sendDataHandler.postDelayed(sendDataRunnable, INTERVALO_DE_TIEMPO);
     }
 
 
@@ -213,25 +231,27 @@ public class MainActivity extends AppCompatActivity {
                 }
 
                 //* Cambiar esto si se cambia a list
-                if(!devicesMap.containsKey(deviceAddress)){
-                    String deviceInfo = "Name: " + deviceName + "\n" +
-                            "Address: " + deviceAddress + "\n" +
-                            "HASHED Address: " + hashed_mac + "\n" +
-                            "Date/Time: " + fecha_hora + "\n" +
-                            "Latitude: " + latitud + "\n" +
-                            "Longitude: " + longitud ;
+                if (!devicesMap.containsKey(deviceAddress)) {
+                    try {
+                        JSONObject deviceInfo = new JSONObject();
+                        deviceInfo.put("hashed_mac", hashed_mac);
+                        deviceInfo.put("fecha_hora", fecha_hora);
+                        deviceInfo.put("latitud", latitud);
+                        deviceInfo.put("longitud", longitud);
 
-                    devicesMap.put(deviceAddress, deviceInfo);
-                    updateListView();
+                        devicesMap.put(deviceAddress, deviceInfo.toString());
+                        updateListView();
+
+                    } catch (JSONException e) {
+                        e.printStackTrace();
+                    }
+
                 }
 
-                // Llamar al método para enviar los datos al servidor
-                sendDataToServer(hashed_mac, fecha_hora, latitud, longitud);
             }
 
         }
     };
-
 
     private void updateListView() {
         // Limpiar y volver a llenar el ArrayAdapter con las direcciones y nombres del mapa
@@ -244,6 +264,72 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
+    // Método para convertir los valores de un mapa a una cadena JSON
+    private static String mapValuesToJson(Map<String, String> dataMap) {
+        JSONArray jsonArray = new JSONArray();
+        for (String value : dataMap.values()) {
+            try {
+                JSONObject jsonObject = new JSONObject(value);
+                jsonArray.put(jsonObject);
+            } catch (JSONException e) {
+                e.printStackTrace();
+            }
+        }
+        return jsonArray.toString();
+    }
+
+
+    private void sendData() {
+        // Crear una instancia de SendDataAsyncTask y ejecutarla
+        new SendDataAsyncTask().execute();
+    }
+
+    // Definir la clase SendDataAsyncTask dentro de la clase MainActivity
+    private class SendDataAsyncTask extends AsyncTask<Void, Void, Void> {
+
+        @Override
+        protected Void doInBackground(Void... voids) {
+            // Lógica de envío de datos aquí
+
+            // Crear una instancia de HttpHandler
+            HttpHandler httpHandler = new HttpHandler();
+
+            String postUrl = "http://192.168.0.103:8000/dispositivos/";
+            //Enviar el map
+            String requestBody = mapValuesToJson(devicesMap);
+            Log.d("Json devices Map", requestBody);
+
+            //Comprimir los datos antes de enviar
+            byte[] compressedData = compressData(requestBody.getBytes(StandardCharsets.UTF_8));
+            Log.d("Compressed Data", compressedData.toString());
+            try {
+                httpHandler.doPostRequest(postUrl, compressedData);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+
+
+            return null;
+        }
+    }
+
+    /* ESTE SENDDATA NO SIRVE PQ SE EJECUTA EN EL PRINCIPAL Y NO ESTA PERMITIDO
+    private void sendData(){
+        // Crear una instancia de HttpHandler
+        HttpHandler httpHandler = new HttpHandler();
+
+        String postUrl = "http://127.0.0.1:8000/dispositivos/";
+        //Enviar el map
+        String requestBody = mapValuesToJson(devicesMap);
+        try {
+            httpHandler.doPostRequest(postUrl, requestBody);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }*/
+
+
+    /*
     private void sendDataToServer(final String hashed_mac, final String fecha_hora, final double latitud, final double longitud) {
         handler.postDelayed(new Runnable() {
             @Override
@@ -285,7 +371,7 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         }.execute();
-    }
+    }*/
 
     @Override
     protected void onDestroy() {
@@ -296,9 +382,28 @@ public class MainActivity extends AppCompatActivity {
         }
         unregisterReceiver(receiver);
 
+        /*
         // Detener el envío de datos al servidor cuando se destruye la actividad
         if (handler != null) {
             handler.removeCallbacksAndMessages(null);
+        }*/
+
+        // Detener el envío de datos al servidor cuando se destruye la actividad
+        if (sendDataHandler != null) {
+            sendDataHandler.removeCallbacksAndMessages(null);
+        }
+    }
+
+    private static byte[] compressData(byte[] data){
+        try {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            GZIPOutputStream gzipOut = new GZIPOutputStream(baos);
+            gzipOut.write(data);
+            gzipOut.close();
+            return baos.toByteArray();
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
         }
     }
 
@@ -323,31 +428,46 @@ public class MainActivity extends AppCompatActivity {
             return response.toString();
         }
 
-        public String doPostRequest(String urlString, String requestBody) throws IOException {
+        public String doPostRequest(String urlString,byte[] requestBody) throws IOException {
             Log.d("URLString", urlString);
             URL url = new URL(urlString);
             Log.d("URL", url.toString());
 
             HttpURLConnection connection = (HttpURLConnection) url.openConnection();
             connection.setRequestMethod("POST");
-            connection.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+            connection.setRequestProperty("Content-Type", "application/octet-stream");
+            connection.setRequestProperty("Content-Encoding", "gzip");
             connection.setDoOutput(true);
 
             try (DataOutputStream outputStream = new DataOutputStream(connection.getOutputStream())) {
-                byte[] postData = requestBody.getBytes(StandardCharsets.UTF_8);
-                outputStream.write(postData);
+                outputStream.write(requestBody);
+                /*byte[] postData = requestBody.getBytes(StandardCharsets.UTF_8);
+                byte[] postDataCompressed = compressData (postData);
+                outputStream.write(postDataCompressed);
+                Log.d("OutputPostStream", outputStream.toString());*/
             }
 
 
             StringBuilder response = new StringBuilder();
-            try (InputStream inputStream = connection.getInputStream();
-                 BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    response.append(line);
+            int responseCode = connection.getResponseCode();
+
+            if (responseCode == HttpURLConnection.HTTP_OK) {
+                try (InputStream inputStream = connection.getInputStream();
+                     BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        response.append(line);
+                    }
                 }
-            } finally {
-                connection.disconnect();
+            } else {
+                try (InputStream errorStream = connection.getErrorStream();
+                     BufferedReader reader = new BufferedReader(new InputStreamReader(errorStream))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        response.append(line);
+                    }
+                }
+
             }
             return response.toString();
         }
