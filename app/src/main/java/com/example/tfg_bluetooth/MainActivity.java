@@ -14,7 +14,6 @@ import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
-import android.util.Base64;
 import android.util.Log;
 import android.view.View;
 import android.widget.ArrayAdapter;
@@ -71,7 +70,8 @@ public class MainActivity extends AppCompatActivity {
     private Runnable sendDataRunnable = new Runnable() {
         @Override
         public void run() {
-            sendData();
+            sendData(); // Enviar datos al servidor
+            startDiscovery(); // Iniciar la búsqueda de dispositivos Bluetooth
             sendDataHandler.postDelayed(this, INTERVALO_DE_TIEMPO);
         }
     };
@@ -80,9 +80,9 @@ public class MainActivity extends AppCompatActivity {
     // Para mostrar datos en la interfaz como lista
     private ArrayAdapter<String> devicesArrayAdapter;
     //Contiene nombre y direccion MAC (se puede cambiar por un ArrayList para guardar solo la MAC)
-    private Map<String, String> devicesMap;
+    private Map<String, JSONObject> devicesMap;
 
-    private List<String> devicesList;
+    private List<JSONObject> devicesList;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -159,7 +159,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void startDiscovery() {
         // Limpiar la lista antes de comenzar una nueva búsqueda
-        devicesMap.clear();
+        //devicesMap.clear();
         devicesArrayAdapter.clear();
 
         // Registrar el BroadcastReceiver para recibir eventos de descubrimiento de Bluetooth
@@ -231,22 +231,30 @@ public class MainActivity extends AppCompatActivity {
                 }
 
                 //* Cambiar esto si se cambia a list
-                if (!devicesMap.containsKey(deviceAddress)) {
+                if (!devicesMap.containsKey(hashed_mac)) {
                     try {
                         JSONObject deviceInfo = new JSONObject();
-                        deviceInfo.put("hashed_mac", hashed_mac);
-                        deviceInfo.put("fecha_hora", fecha_hora);
+                        deviceInfo.put("primera_fecha_hora", fecha_hora);
+                        deviceInfo.put("ultima_fecha_hora", fecha_hora);
                         deviceInfo.put("latitud", latitud);
                         deviceInfo.put("longitud", longitud);
 
-                        devicesMap.put(deviceAddress, deviceInfo.toString());
+                        devicesMap.put(hashed_mac, deviceInfo);
                         updateListView();
 
                     } catch (JSONException e) {
                         e.printStackTrace();
                     }
 
+                }  else {
+                // Si el dispositivo ya está en el mapa, actualizar la fecha y hora de la última detección
+                try {
+                    JSONObject deviceInfo = devicesMap.get(hashed_mac);
+                    deviceInfo.put("ultima_fecha_hora", fecha_hora);
+                } catch (JSONException e) {
+                    e.printStackTrace();
                 }
+            }
 
             }
 
@@ -257,17 +265,26 @@ public class MainActivity extends AppCompatActivity {
         // Limpiar y volver a llenar el ArrayAdapter con las direcciones y nombres del mapa
         devicesArrayAdapter.clear();
         //*Cambiar esto tambien
-        for (String deviceInfo : devicesMap.values()) {
-            devicesArrayAdapter.add(deviceInfo);
+        // Iterar sobre las entradas del mapa (clave, valor)
+        for (Map.Entry<String, JSONObject> entry : devicesMap.entrySet()) {
+            String clave = entry.getKey();
+            JSONObject valores = entry.getValue();
+
+            // Construir la cadena para agregar al ArrayAdapter
+            StringBuilder stringBuilder = new StringBuilder();
+            stringBuilder.append("hashed_mac: ").append(clave).append("\n");
+            stringBuilder.append(valores.toString());
+
+            devicesArrayAdapter.add(stringBuilder.toString());
         }
         devicesArrayAdapter.notifyDataSetChanged();
     }
 
 
     // Método para convertir los valores de un mapa a una cadena JSON
-    private static String mapValuesToJson(Map<String, String> dataMap) {
+    /*private static String mapValuesToJson(Map<String, JSONObject> dataMap) {
         JSONArray jsonArray = new JSONArray();
-        for (String value : dataMap.values()) {
+        for (JSONObject value : dataMap.values()) {
             try {
                 JSONObject jsonObject = new JSONObject(value);
                 jsonArray.put(jsonObject);
@@ -276,7 +293,7 @@ public class MainActivity extends AppCompatActivity {
             }
         }
         return jsonArray.toString();
-    }
+    }*/
 
 
     private void sendData() {
@@ -294,10 +311,12 @@ public class MainActivity extends AppCompatActivity {
             // Crear una instancia de HttpHandler
             HttpHandler httpHandler = new HttpHandler();
 
-            String postUrl = "http://192.168.0.103:8000/dispositivos/";
+            String postUrl = "https://abf4-80-39-218-41.ngrok-free.app/dispositivos/";
+
+            JSONObject devicesJson = new JSONObject(devicesMap);
             //Enviar el map
-            String requestBody = mapValuesToJson(devicesMap);
-            Log.d("Json devices Map", requestBody);
+            String requestBody = devicesJson.toString();
+            Log.d("Json devices", requestBody);
 
             //Comprimir los datos antes de enviar
             byte[] compressedData = compressData(requestBody.getBytes(StandardCharsets.UTF_8));
@@ -307,6 +326,9 @@ public class MainActivity extends AppCompatActivity {
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
+
+            //Limpiar el mapa de dispositivos después de enviar los datos
+            devicesMap.clear();
 
 
             return null;
