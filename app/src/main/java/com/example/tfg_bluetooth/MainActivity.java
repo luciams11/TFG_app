@@ -62,7 +62,7 @@ public class MainActivity extends AppCompatActivity {
 
     private static final int REQUEST_ENABLE_BT = 1;
     private static final int REQUEST_LOCATION_PERMISSION = 2;
-    private static final long INTERVALO_DE_TIEMPO = 1*60*1000;
+    private static final long INTERVALO_DE_TIEMPO = 5*60*1000;
 
     private Handler handler;
 
@@ -231,33 +231,21 @@ public class MainActivity extends AppCompatActivity {
                 }
 
                 //* Cambiar esto si se cambia a list
-                if (!devicesMap.containsKey(hashed_mac)) {
-                    try {
-                        JSONObject deviceInfo = new JSONObject();
-                        deviceInfo.put("primera_fecha_hora", fecha_hora);
-                        deviceInfo.put("ultima_fecha_hora", fecha_hora);
-                        deviceInfo.put("latitud", latitud);
-                        deviceInfo.put("longitud", longitud);
-
-                        devicesMap.put(hashed_mac, deviceInfo);
-                        updateListView();
-
-                    } catch (JSONException e) {
-                        e.printStackTrace();
-                    }
-
-                }  else {
-                // Si el dispositivo ya está en el mapa, actualizar la fecha y hora de la última detección
                 try {
-                    JSONObject deviceInfo = devicesMap.get(hashed_mac);
+                    JSONObject deviceInfo = new JSONObject();
+                    deviceInfo.put("primera_fecha_hora", fecha_hora);
                     deviceInfo.put("ultima_fecha_hora", fecha_hora);
+                    deviceInfo.put("latitud", latitud);
+                    deviceInfo.put("longitud", longitud);
+
+                    devicesMap.put(hashed_mac, deviceInfo);
+                    updateListView();
+
                 } catch (JSONException e) {
                     e.printStackTrace();
                 }
-            }
 
             }
-
         }
     };
 
@@ -280,22 +268,6 @@ public class MainActivity extends AppCompatActivity {
         devicesArrayAdapter.notifyDataSetChanged();
     }
 
-
-    // Método para convertir los valores de un mapa a una cadena JSON
-    /*private static String mapValuesToJson(Map<String, JSONObject> dataMap) {
-        JSONArray jsonArray = new JSONArray();
-        for (JSONObject value : dataMap.values()) {
-            try {
-                JSONObject jsonObject = new JSONObject(value);
-                jsonArray.put(jsonObject);
-            } catch (JSONException e) {
-                e.printStackTrace();
-            }
-        }
-        return jsonArray.toString();
-    }*/
-
-
     private void sendData() {
         // Crear una instancia de SendDataAsyncTask y ejecutarla
         new SendDataAsyncTask().execute();
@@ -311,7 +283,7 @@ public class MainActivity extends AppCompatActivity {
             // Crear una instancia de HttpHandler
             HttpHandler httpHandler = new HttpHandler();
 
-            String postUrl = "https://abf4-80-39-218-41.ngrok-free.app/dispositivos/";
+            String postUrl = "https://miserably-touched-gecko.ngrok-free.app/dispositivos/";
 
             JSONObject devicesJson = new JSONObject(devicesMap);
             //Enviar el map
@@ -334,66 +306,6 @@ public class MainActivity extends AppCompatActivity {
             return null;
         }
     }
-
-    /* ESTE SENDDATA NO SIRVE PQ SE EJECUTA EN EL PRINCIPAL Y NO ESTA PERMITIDO
-    private void sendData(){
-        // Crear una instancia de HttpHandler
-        HttpHandler httpHandler = new HttpHandler();
-
-        String postUrl = "http://127.0.0.1:8000/dispositivos/";
-        //Enviar el map
-        String requestBody = mapValuesToJson(devicesMap);
-        try {
-            httpHandler.doPostRequest(postUrl, requestBody);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }*/
-
-
-    /*
-    private void sendDataToServer(final String hashed_mac, final String fecha_hora, final double latitud, final double longitud) {
-        handler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                // Llamar al método para enviar datos al servidor con los parámetros proporcionados
-                performDataSending(hashed_mac, fecha_hora, latitud, longitud);
-                // Programar la tarea nuevamente después del intervalo de tiempo especificado
-                handler.postDelayed(this, INTERVALO_DE_TIEMPO);
-            }
-        }, INTERVALO_DE_TIEMPO); // Iniciar la tarea después del intervalo de tiempo especificado por primera vez
-    }
-
-    private void performDataSending(final String hashed_mac, final String fecha_hora, final double latitud, final double longitud) {
-        new AsyncTask<Void, Void, String>() {
-            @Override
-            protected String doInBackground(Void... voids) {
-                // Crear una instancia de HttpHandler
-                HttpHandler httpHandler = new HttpHandler();
-
-                // Realizar la solicitud POST al servidor con los datos proporcionados
-                String postUrl = "https://a88f-83-60-71-170.ngrok-free.app/dispositivos/";
-                String requestBody = "{\"hashed_mac\": \"" + hashed_mac + "\", \"fecha_hora\": \"" + fecha_hora + "\", \"latitud\": \"" + latitud + "\", \"longitud\": \"" + longitud + "\"}";
-                try {
-                    return httpHandler.doPostRequest(postUrl, requestBody);
-                } catch (IOException e) {
-                    e.printStackTrace();
-                    return null;
-                }
-            }
-
-            @Override
-            protected void onPostExecute(String response) {
-                super.onPostExecute(response);
-                // Procesar la respuesta recibida si es necesario
-                if (response != null) {
-                    Log.d("POST Response", response);
-                } else {
-                    Log.e("POST Error", "No se pudo completar la solicitud HTTP POST");
-                }
-            }
-        }.execute();
-    }*/
 
     @Override
     protected void onDestroy() {
@@ -463,10 +375,6 @@ public class MainActivity extends AppCompatActivity {
 
             try (DataOutputStream outputStream = new DataOutputStream(connection.getOutputStream())) {
                 outputStream.write(requestBody);
-                /*byte[] postData = requestBody.getBytes(StandardCharsets.UTF_8);
-                byte[] postDataCompressed = compressData (postData);
-                outputStream.write(postDataCompressed);
-                Log.d("OutputPostStream", outputStream.toString());*/
             }
 
 
