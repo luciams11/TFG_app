@@ -12,7 +12,7 @@
         android:layout_alignParentTop="true"
         android:layout_centerHorizontal="true"
         android:layout_marginTop="16dp"
-        android:text="Buscar Dispositivos" />
+        android:text="Buscar dispositivos" />
 
     <ListView
         android:id="@+id/devicesListView"
@@ -20,5 +20,6 @@
         android:layout_height="match_parent"
         android:layout_below="@id/searchButton"
         android:layout_margin="16dp" />
+
 
 </RelativeLayout>

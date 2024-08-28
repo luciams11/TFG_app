@@ -1,10 +1,12 @@
 package com.example.tfg_bluetooth;
 
 import android.Manifest;
+import android.app.AlertDialog;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
@@ -14,6 +16,7 @@ import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.provider.Settings;
 import android.util.Log;
 import android.view.View;
 import android.widget.ArrayAdapter;
@@ -83,6 +86,8 @@ public class MainActivity extends AppCompatActivity {
     private Map<String, JSONObject> devicesMap;
 
     private List<JSONObject> devicesList;
+    private boolean isSearching = false;  // Estado de búsqueda (activa o no)
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -109,6 +114,9 @@ public class MainActivity extends AppCompatActivity {
             return;
         }
 
+        // Verificar si Bluetooth y la ubicación están habilitados
+        checkBluetoothAndLocation();
+/*
         // Solicitar permisos de ubicación si es necesario (para dispositivos con Android 6.0 y superior)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             checkLocationPermission();
@@ -118,20 +126,35 @@ public class MainActivity extends AppCompatActivity {
         if (!bluetoothAdapter.isEnabled()) {
             Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
             startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
-        }
-        // Después de la inicialización de devicesListView en onCreate
+        }*/
+
         Button searchButton = findViewById(R.id.searchButton);
         searchButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                // Manejar el clic del botón para iniciar la búsqueda nuevamente
-                startDiscovery();
+                if(isSearching){
+                    stopDiscovery(); // Detener la búsqueda
+                }
+                else{
+                    startDiscovery(); // Iniciar la búsqueda
+                }
             }
         });
 
         handler = new Handler();
 
         sendDataHandler.postDelayed(sendDataRunnable, INTERVALO_DE_TIEMPO);
+    }
+
+    private void checkBluetoothAndLocation() {
+        // Verificar si Bluetooth está habilitado
+        if (!bluetoothAdapter.isEnabled()) {
+            Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+            startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
+        }
+
+        // Verificar si la ubicación está habilitada
+        checkLocationPermission();
     }
 
 
@@ -142,14 +165,49 @@ public class MainActivity extends AppCompatActivity {
                     new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
                     REQUEST_LOCATION_PERMISSION);
         }
+        else{
+            if(!isLocationEnabled()){
+                showLocationSettingsDialog();
+            }
+        }
     }
 
+    private boolean isLocationEnabled() {
+        LocationManager locationManager = (LocationManager) getSystemService(Context.LOCATION_SERVICE);
+        return locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER) || locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER);
+    }
+
+    private void showLocationSettingsDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Habilitar Ubicación");
+        builder.setMessage("La ubicación está desactivada. Por favor, actívala para buscar dispositivos Bluetooth.");
+        builder.setPositiveButton("Configuración", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                Intent intent = new Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS);
+                startActivity(intent);
+            }
+        });
+        builder.setNegativeButton("Cancelar", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                Toast.makeText(MainActivity.this, "La ubicación es necesaria para buscar dispositivos Bluetooth", Toast.LENGTH_SHORT).show();
+                finish();
+            }
+        });
+        builder.show();
+    }
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == REQUEST_LOCATION_PERMISSION) {
             if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                startDiscovery();
+                if(!isLocationEnabled()){
+                    showLocationSettingsDialog();
+                }
+                else {
+                    startDiscovery();
+                }
             } else {
                 Toast.makeText(this, "Se requiere permiso de ubicación para buscar dispositivos Bluetooth", Toast.LENGTH_SHORT).show();
                 finish();
@@ -158,6 +216,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void startDiscovery() {
+        isSearching = true;
+        Button searchButton = findViewById(R.id.searchButton);
+        searchButton.setText("Detener búsqueda");
         // Limpiar la lista antes de comenzar una nueva búsqueda
         //devicesMap.clear();
         devicesArrayAdapter.clear();
@@ -170,7 +231,19 @@ public class MainActivity extends AppCompatActivity {
         bluetoothAdapter.startDiscovery();
     }
 
-    // Declarar el método para calcular la hashed_mac a partir de la dirección MAC
+    private void stopDiscovery() {
+        isSearching = false;
+        bluetoothAdapter.cancelDiscovery();
+        unregisterReceiver(receiver);
+
+        Button searchButton = findViewById(R.id.searchButton);
+        searchButton.setText("Buscar dispositivos");
+
+        devicesArrayAdapter.clear();
+        devicesMap.clear();
+    }
+
+    // Método para calcular la hashed_mac a partir de la dirección MAC
     private String hashMac(String macAddress) {
         try {
             // Crear una instancia de MessageDigest con el algoritmo SHA-256
@@ -310,7 +383,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        // Detener el descubrimiento y desregistrar el BroadcastReceiver al salir de la actividad
+        // Detener el descubrimiento y dar de baja el BroadcastReceiver al salir de la actividad
         if (bluetoothAdapter != null) {
             bluetoothAdapter.cancelDiscovery();
         }
