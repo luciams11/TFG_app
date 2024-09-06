@@ -13,7 +13,6 @@ import android.content.pm.PackageManager;
 import android.location.Location;
 import android.location.LocationManager;
 import android.os.AsyncTask;
-import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.provider.Settings;
@@ -29,7 +28,6 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
-import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -95,11 +93,9 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         devicesMap = new HashMap<>();
-        // Convertir los valores del HashMap a una lista
         devicesList = new ArrayList<>(devicesMap.values());
 
         // Crear el ArrayAdapter con la lista
-        //* Cambiar a android.R.layout.simple_list_item_1
         devicesArrayAdapter = new ArrayAdapter<>(this, R.layout.list_item_device);
 
 
@@ -116,17 +112,6 @@ public class MainActivity extends AppCompatActivity {
 
         // Verificar si Bluetooth y la ubicación están habilitados
         checkBluetoothAndLocation();
-/*
-        // Solicitar permisos de ubicación si es necesario (para dispositivos con Android 6.0 y superior)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            checkLocationPermission();
-        }
-
-        // Verificar si Bluetooth está habilitado
-        if (!bluetoothAdapter.isEnabled()) {
-            Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-            startActivityForResult(enableBtIntent, REQUEST_ENABLE_BT);
-        }*/
 
         Button searchButton = findViewById(R.id.searchButton);
         searchButton.setOnClickListener(new View.OnClickListener() {
@@ -220,7 +205,6 @@ public class MainActivity extends AppCompatActivity {
         Button searchButton = findViewById(R.id.searchButton);
         searchButton.setText("Detener búsqueda");
         // Limpiar la lista antes de comenzar una nueva búsqueda
-        //devicesMap.clear();
         devicesArrayAdapter.clear();
 
         // Registrar el BroadcastReceiver para recibir eventos de descubrimiento de Bluetooth
@@ -325,7 +309,6 @@ public class MainActivity extends AppCompatActivity {
     private void updateListView() {
         // Limpiar y volver a llenar el ArrayAdapter con las direcciones y nombres del mapa
         devicesArrayAdapter.clear();
-        //*Cambiar esto tambien
         // Iterar sobre las entradas del mapa (clave, valor)
         for (Map.Entry<String, JSONObject> entry : devicesMap.entrySet()) {
             String clave = entry.getKey();
@@ -388,12 +371,6 @@ public class MainActivity extends AppCompatActivity {
             bluetoothAdapter.cancelDiscovery();
         }
         unregisterReceiver(receiver);
-
-        /*
-        // Detener el envío de datos al servidor cuando se destruye la actividad
-        if (handler != null) {
-            handler.removeCallbacksAndMessages(null);
-        }*/
 
         // Detener el envío de datos al servidor cuando se destruye la actividad
         if (sendDataHandler != null) {
