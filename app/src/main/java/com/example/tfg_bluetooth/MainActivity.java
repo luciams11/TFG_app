@@ -126,6 +126,15 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        Button privacyButton = findViewById(R.id.privacyButton);
+        privacyButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View view) {
+                // Mostrar un mensaje con el tratamiento de datos
+                showPrivacyDialog();
+            }
+        });
+
         handler = new Handler();
 
         sendDataHandler.postDelayed(sendDataRunnable, INTERVALO_DE_TIEMPO);
@@ -451,6 +460,20 @@ public class MainActivity extends AppCompatActivity {
             }
             return response.toString();
         }
+    }
+
+    private void showPrivacyDialog() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Tratamiento de Datos");
+        builder.setMessage("Esta aplicación recopila información de dispositivos Bluetooth cercanos de forma anónima. " +
+                "La dirección MAC de cada dispositivo se encripta antes de ser enviada a un servidor remoto para su análisis. No se recopilan datos personales que puedan identificarte.");
+        builder.setPositiveButton("Aceptar", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                dialog.dismiss(); // Cierra el diálogo
+            }
+        });
+        builder.show();
     }
 }
 
